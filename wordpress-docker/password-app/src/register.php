@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html>
 <head>
     <title>Create Account</title>
+    <script src="assets/password-check.js" defer></script>
 </head>
 <body>
 <h1>Create Account</h1>
