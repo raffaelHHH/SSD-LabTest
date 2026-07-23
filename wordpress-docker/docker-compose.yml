@@ -123,6 +123,49 @@ services:
     networks:
       - wpnet
 
+  # Dedicated database for the password-policy demo app: a blocklist of
+  # commonly-used passwords (seeded from SecLists' NCSC list) and the
+  # created-user log table.
+  passwordapp-db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${PWAPP_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${PWAPP_DB_NAME}
+      MYSQL_USER: ${PWAPP_DB_USER}
+      MYSQL_PASSWORD: ${PWAPP_DB_PASSWORD}
+    volumes:
+      - passwordapp_db_data:/var/lib/mysql
+      - ./password-app/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${PWAPP_DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - wpnet
+
+  # SSD assignment demo: registration form enforcing OWASP Proactive
+  # Controls C7 (Level 1 password requirements). Uses php:apache directly
+  # instead of an nginx + php-fpm pair.
+  passwordapp:
+    build: ./password-app
+    restart: unless-stopped
+    depends_on:
+      passwordapp-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: passwordapp-db
+      DB_NAME: ${PWAPP_DB_NAME}
+      DB_USER: ${PWAPP_DB_USER}
+      DB_PASSWORD: ${PWAPP_DB_PASSWORD}
+    volumes:
+      - ./password-app/src:/var/www/html
+    ports:
+      - "${PWAPP_PORT}:80"
+    networks:
+      - wpnet
+
 networks:
   wpnet:
 
@@ -130,3 +173,4 @@ volumes:
   db_data:
   wp_data:
   gitea_data:
+  passwordapp_db_data:
