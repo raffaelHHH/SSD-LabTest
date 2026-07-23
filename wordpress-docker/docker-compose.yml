@@ -81,9 +81,52 @@ services:
     networks:
       - wpnet
 
+  # Writes the git commit identity into the Gitea data volume before Gitea
+  # starts, so the server's git user (uid 1000) already has a ~/.gitconfig.
+  gitea-init:
+    image: busybox
+    volumes:
+      - gitea_data:/data
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        mkdir -p /data/git
+        cat > /data/git/.gitconfig <<EOF
+        [user]
+          name = ${GIT_USER_NAME}
+          email = ${GIT_USER_EMAIL}
+        EOF
+        chown -R 1000:1000 /data/git
+
+  gitea:
+    image: gitea/gitea:latest
+    restart: unless-stopped
+    depends_on:
+      gitea-init:
+        condition: service_completed_successfully
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      GITEA__server__DOMAIN: 127.0.0.1
+      GITEA__server__SSH_DOMAIN: 127.0.0.1
+      GITEA__server__ROOT_URL: http://127.0.0.1:${GITEA_HTTP_PORT}/
+      GITEA__server__HTTP_PORT: 3000
+      GITEA__server__SSH_PORT: ${GITEA_SSH_PORT}
+      GITEA__server__START_SSH_SERVER: "false"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__security__INSTALL_LOCK: "true"
+    volumes:
+      - gitea_data:/data
+    ports:
+      - "${GITEA_HTTP_PORT}:3000"
+      - "${GITEA_SSH_PORT}:22"
+    networks:
+      - wpnet
+
 networks:
   wpnet:
 
 volumes:
   db_data:
   wp_data:
+  gitea_data:
