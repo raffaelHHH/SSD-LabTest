@@ -1,0 +1,76 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - wpnet
+
+  wordpress:
+    image: wordpress:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WORDPRESS_PORT}:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+    volumes:
+      - wp_data:/var/www/html
+    networks:
+      - wpnet
+
+  # Runs once on startup: waits for WordPress + MySQL to be ready, then
+  # finishes the install non-interactively so the admin account exists
+  # with the credentials from .env instead of needing the setup wizard.
+  wpcli:
+    image: wordpress:cli
+    depends_on:
+      - wordpress
+    volumes:
+      - wp_data:/var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+    entrypoint: ["sh", "-c"]
+    command: >
+      "
+      until wp core is-installed --path=/var/www/html --allow-root >/dev/null 2>&1; do
+        echo 'Waiting for WordPress to be installable...';
+        wp --path=/var/www/html --allow-root core install \
+          --url='${WORDPRESS_URL}' \
+          --title='${WORDPRESS_TITLE}' \
+          --admin_user='${WORDPRESS_ADMIN_USER}' \
+          --admin_password='${WORDPRESS_ADMIN_PASSWORD}' \
+          --admin_email='${WORDPRESS_ADMIN_EMAIL}' \
+          --skip-email >/dev/null 2>&1;
+        sleep 5;
+      done;
+      echo 'WordPress is installed and admin account is ready.';
+      "
+    networks:
+      - wpnet
+
+networks:
+  wpnet:
+
+volumes:
+  db_data:
+  wp_data:

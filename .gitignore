@@ -1,0 +1,2 @@
+.DS_Store
+wordpress-docker/nginx/certs/*.key
