@@ -1,7 +1,12 @@
 {
   "name": "ssd-test-ci",
   "private": true,
+  "scripts": {
+    "lint:security": "eslint . --ext .js"
+  },
   "devDependencies": {
-    "@playwright/test": "^1.47.0"
+    "@playwright/test": "^1.47.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-security": "^2.1.1"
   }
 }
