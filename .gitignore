@@ -1,2 +1,5 @@
 .DS_Store
 wordpress-docker/nginx/certs/*.key
+node_modules/
+playwright-report/
+test-results/

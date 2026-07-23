@@ -1,0 +1,7 @@
+{
+  "name": "ssd-test-ci",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}
