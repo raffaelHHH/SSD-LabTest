@@ -65,21 +65,25 @@ Runs on `php:8.2-apache` directly (`password-app/Dockerfile` adds the
 
 ## CI (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on every push/PR, with two jobs:
+`.github/workflows/ci.yml` runs on every push/PR, with three jobs:
 
+- **`eslint-security`** — runs [ESLint](https://eslint.org/) with [`eslint-plugin-security`](https://github.com/eslint-community/eslint-plugin-security) (`.eslintrc.json`) over all `.js` files in the repo (the frontend password check, the Playwright tests, and the CI config files themselves) and fails the build on findings — e.g. unsafe `RegExp`, non-literal `fs`/`child_process` calls, `eval`-with-expression.
 - **`dependency-check`** — runs [OWASP Dependency-Check](https://github.com/dependency-check/Dependency-Check_Action) over the repo and uploads the HTML report as a build artifact.
 - **`integration-and-ui-tests`** — builds and starts just `passwordapp` + `passwordapp-db`, then runs two suites over plain HTTP against the live containers:
   - **Integration tests** (`password-app/tests/integration.sh`) — curl-driven, covering the PHP app + MySQL round trip: common-password rejection, minimum-length rejection, successful registration + welcome page, and login recognising an existing user.
   - **UI tests** (`password-app/tests/ui/register.spec.js`, [Playwright](https://playwright.dev/)) — drives an actual headless browser against the home, register, and welcome pages.
 
-Run the same suites locally:
+Run the same checks locally:
 
 ```
+# ESLint security scan
+npm install
+npm run lint:security
+
 # integration tests (app must already be running, e.g. docker compose up -d passwordapp-db passwordapp)
 bash wordpress-docker/password-app/tests/integration.sh
 
 # UI tests
-npm install
 npx playwright install --with-deps chromium
 npx playwright test
 ```
