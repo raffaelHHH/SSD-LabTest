@@ -63,6 +63,27 @@ Identities) → Level 1: Passwords**.
 Runs on `php:8.2-apache` directly (`password-app/Dockerfile` adds the
 `pdo_mysql` extension) rather than a separate nginx + php-fpm pair.
 
+## CI (GitHub Actions)
+
+`.github/workflows/ci.yml` runs on every push/PR, with two jobs:
+
+- **`dependency-check`** — runs [OWASP Dependency-Check](https://github.com/dependency-check/Dependency-Check_Action) over the repo and uploads the HTML report as a build artifact.
+- **`integration-and-ui-tests`** — builds and starts just `passwordapp` + `passwordapp-db`, then runs two suites over plain HTTP against the live containers:
+  - **Integration tests** (`password-app/tests/integration.sh`) — curl-driven, covering the PHP app + MySQL round trip: common-password rejection, minimum-length rejection, successful registration + welcome page, and login recognising an existing user.
+  - **UI tests** (`password-app/tests/ui/register.spec.js`, [Playwright](https://playwright.dev/)) — drives an actual headless browser against the home, register, and welcome pages.
+
+Run the same suites locally:
+
+```
+# integration tests (app must already be running, e.g. docker compose up -d passwordapp-db passwordapp)
+bash wordpress-docker/password-app/tests/integration.sh
+
+# UI tests
+npm install
+npx playwright install --with-deps chromium
+npx playwright test
+```
+
 ## Gitea
 
 Self-hosted git server (`gitea` + one-shot `gitea-init` service). Uses
