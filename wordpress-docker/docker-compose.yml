@@ -73,9 +73,11 @@ services:
     depends_on:
       - wordpress
       - passwordapp
+      - sonarqube
     ports:
       - "80:80"
       - "443:443"
+      - "9000:9000"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -167,6 +169,70 @@ services:
     networks:
       - wpnet
 
+  sonarqube-db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SONARQUBE_DB_USER}
+      POSTGRES_PASSWORD: ${SONARQUBE_DB_PASSWORD}
+      POSTGRES_DB: ${SONARQUBE_DB_NAME}
+    volumes:
+      - sonarqube_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SONARQUBE_DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - wpnet
+
+  sonarqube:
+    image: sonarqube:community
+    restart: unless-stopped
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/${SONARQUBE_DB_NAME}
+      SONAR_JDBC_USERNAME: ${SONARQUBE_DB_USER}
+      SONAR_JDBC_PASSWORD: ${SONARQUBE_DB_PASSWORD}
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - wpnet
+
+  # One-shot: waits for SonarQube to be ready, then applies the admin
+  # password from .env via the API (SonarQube ships with a default
+  # admin/admin login and has no env var to set the password directly).
+  # Safe to re-run: if the password was already changed on a previous
+  # boot, the API call just fails harmlessly (wrong previous password).
+  sonarqube-init:
+    image: curlimages/curl
+    depends_on:
+      - sonarqube
+    environment:
+      SONARQUBE_ADMIN_PASSWORD: ${SONARQUBE_ADMIN_PASSWORD}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        until curl -sf http://sonarqube:9000/api/system/status | grep -q '"status":"UP"'; do
+          echo 'Waiting for SonarQube to be ready...';
+          sleep 5;
+        done;
+        curl -s -o /dev/null -u admin:admin -X POST http://sonarqube:9000/api/users/change_password \
+          --data-urlencode "login=admin" \
+          --data-urlencode "previousPassword=admin" \
+          --data-urlencode "password=${SONARQUBE_ADMIN_PASSWORD}";
+        echo 'Admin password set (or was already set on a previous run).';
+    networks:
+      - wpnet
+
 networks:
   wpnet:
 
@@ -175,3 +241,7 @@ volumes:
   wp_data:
   gitea_data:
   passwordapp_db_data:
+  sonarqube_db_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
